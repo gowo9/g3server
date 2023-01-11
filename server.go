@@ -9,6 +9,7 @@ import (
 
 	gwRuntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -100,13 +101,16 @@ func (s *Server) Serve(l net.Listener) (err error) {
 	s.startGRPCServer()
 
 	// 配置 h2c
+	// gPRC 必須使用 http2 連線，但是內建的 http 並不支援非 TLS 的 HTTP2(h2c)
+	// 所以這裡得要配置 h2c，讓 gRPC 客戶端可以正常連線
+
 	var http2Server http2.Server
 	err = http2.ConfigureServer(s.httpServer, &http2Server)
 	if err != nil {
 		return
 	}
-	// http.Serve 不支持 h2c
-	// 如果直接使用 http.Serve 將使 gRPC 客戶端 無法正常訪問
+	s.httpServer.Handler = h2c.NewHandler(s, &http2Server)
+
 	return s.httpServer.Serve(l)
 }
 
